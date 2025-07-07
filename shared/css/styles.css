@@ -20,6 +20,7 @@
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.18);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.22);
   --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.28);
+  --primary-color-rgb: 67, 97, 238; /* Added for opacity usage */
   
   /* Glass Morphism Effects */
   --glass-background: rgba(34, 44, 74, 0.85);

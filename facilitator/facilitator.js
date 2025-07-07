@@ -224,15 +224,32 @@ function setupEventListeners() {
   // Run Analysis button
   if (runAnalysisBtn) {
     runAnalysisBtn.addEventListener('click', () => {
-      if (selectedStudentId && students[selectedStudentId]) {
-        const code = students[selectedStudentId].code;
-        const errors = detectErrors(code);
-        displayErrors(errors);
+      if (selectedStudentId && students[selectedStudentId] && editor) {
+        const code = students[selectedStudentId].code; // or editor.getValue() if it's guaranteed to be current
+
+        // Get errors from Monaco editor for the facilitator's view
+        const model = editor.getModel();
+        if (model) {
+          // Using a generic filter here as the facilitator's editor model might not have a simple owner string
+          const markers = monaco.editor.getModelMarkers({});
+          // Filter for markers specifically related to the current student's code model if possible,
+          // for now, this will get all markers, which should be fine if only one model is active.
+          // Ideally, filter by model.uri if we can ensure it matches.
+          displayErrors(markers.filter(m => m.resource.toString() === model.uri.toString()));
+        }
         
         // Add additional advanced analysis
         const advancedAnalysis = analyzeCodeQuality(code);
         if (advancedAnalysis.length > 0) {
+          // displayAdvancedAnalysis will append to the existing error list
           displayAdvancedAnalysis(advancedAnalysis);
+        } else if (errorList.querySelector('ul') === null) {
+            // If Monaco had no errors and advanced analysis has nothing, show a message.
+            errorList.innerHTML = `
+              <div class="empty-state small">
+                <p>No errors or suggestions found.</p>
+              </div>
+            `;
         }
       }
     });
@@ -489,9 +506,13 @@ function updateCodeView(code, language = 'javascript') {
       monaco.editor.setModelLanguage(editor.getModel(), language);
     }
     
-    // Analyze code for errors
-    const errors = detectErrors(code);
-    displayErrors(errors);
+    // Analyze code for errors using Monaco markers
+    const model = editor.getModel();
+    if (model) {
+      // As in runAnalysisBtn, using a generic filter for now.
+      const markers = monaco.editor.getModelMarkers({});
+      displayErrors(markers.filter(m => m.resource.toString() === model.uri.toString()));
+    }
     
     // Update code lines count
     if (selectedStudentId && students[selectedStudentId]) {
@@ -502,57 +523,73 @@ function updateCodeView(code, language = 'javascript') {
 }
 
 // Display errors in the error list
-function displayErrors(errors) {
-  errorList.innerHTML = '';
+function displayErrors(markers) {
+  errorList.innerHTML = ''; // Clear previous Monaco errors, but not necessarily advanced analysis titles
   
-  if (errors.length === 0) {
-    errorList.innerHTML = `
-      <div class="empty-state small">
-        <p>No errors detected</p>
-      </div>
-    `;
+  const significantMarkers = markers.filter(marker => marker.severity === monaco.MarkerSeverity.Error || marker.severity === monaco.MarkerSeverity.Warning);
+
+  if (significantMarkers.length === 0) {
+    // Don't show "No errors detected" here if advanced analysis might add something.
+    // The runAnalysisBtn logic will handle the empty state if nothing is found at all.
+    // If called from updateCodeView, and no errors, it will just be blank, which is fine.
     return;
   }
   
   const errorListElement = document.createElement('ul');
+  errorListElement.classList.add('monaco-error-list'); // For specific styling
   
-  errors.forEach(error => {
+  significantMarkers.forEach(marker => {
     const errorItem = document.createElement('li');
-    errorItem.textContent = error.line ? `Line ${error.line}: ${error.message}` : error.message;
+    let severityClass = '';
+    let severityText = '';
+
+    if (marker.severity === monaco.MarkerSeverity.Error) {
+      severityClass = 'error';
+      severityText = 'Error';
+    } else if (marker.severity === monaco.MarkerSeverity.Warning) {
+      severityClass = 'warning';
+      severityText = 'Warning';
+    }
+    // todo: Add Hint and Info if desired from monaco.MarkerSeverity.Hint and monaco.MarkerSeverity.Info
+
+    errorItem.classList.add(severityClass);
+    errorItem.textContent = `Line ${marker.startLineNumber}, Col ${marker.startColumn}: ${marker.message} [${severityText}]`;
     errorListElement.appendChild(errorItem);
   });
   
-  errorList.appendChild(errorListElement);
+  // Prepend Monaco errors to keep them at the top if advanced analysis is also shown
+  errorList.prepend(errorListElement);
 }
 
 // Display advanced code analysis
 function displayAdvancedAnalysis(analysis) {
-  // If there's already an error list, append to it
-  let errorListElement = errorList.querySelector('ul');
-  
-  if (!errorListElement) {
-    errorListElement = document.createElement('ul');
-    errorList.appendChild(errorListElement);
+  let advancedAnalysisList = errorList.querySelector('.advanced-analysis-list');
+  if (!advancedAnalysisList) {
+    advancedAnalysisList = document.createElement('ul');
+    advancedAnalysisList.classList.add('advanced-analysis-list');
+    errorList.appendChild(advancedAnalysisList); // Append this list after any Monaco errors
   }
   
-  // Add a separator
-  const separator = document.createElement('li');
-  separator.style.borderTop = '1px dashed #ddd';
-  separator.style.margin = '10px 0';
-  separator.style.padding = '5px 0';
-  separator.textContent = 'Code Quality Suggestions:';
-  separator.style.fontWeight = 'bold';
-  separator.style.backgroundColor = 'transparent';
-  separator.style.borderLeft = 'none';
-  errorListElement.appendChild(separator);
+  // Clear previous advanced analysis items only
+  advancedAnalysisList.innerHTML = '';
+
+  // Add a separator/title for this section if there are items
+  if (analysis.length > 0) {
+    const titleItem = document.createElement('li');
+    titleItem.textContent = 'Code Quality Suggestions:';
+    titleItem.style.fontWeight = 'bold';
+    titleItem.style.marginTop = '10px';
+    titleItem.style.listStyleType = 'none'; // No bullet for the title
+    advancedAnalysisList.appendChild(titleItem);
+  }
   
   // Add analysis items
   analysis.forEach(item => {
     const analysisItem = document.createElement('li');
     analysisItem.textContent = item.message;
-    analysisItem.style.backgroundColor = 'rgba(76, 201, 240, 0.08)';
-    analysisItem.style.borderLeftColor = 'var(--accent-color)';
-    errorListElement.appendChild(analysisItem);
+    // Styling for these items can be done via CSS using the .advanced-analysis-list class
+    // For example: .advanced-analysis-list li { background-color: ... }
+    advancedAnalysisList.appendChild(analysisItem);
   });
 }
 

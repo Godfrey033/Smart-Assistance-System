@@ -36,85 +36,31 @@ function initEditor(containerId, readOnly = false) {
   return editor;
 }
 
-// Basic syntax error detection
-function detectErrors(code) {
-  const errors = [];
-  
-  // Check for missing semicolons
-  const lines = code.split('\n');
-  lines.forEach((line, index) => {
-    // Skip comments and empty lines
-    if (line.trim().startsWith('//') || line.trim() === '') return;
-    
-    // Check if line needs a semicolon but doesn't have one
-    if (!line.trim().endsWith(';') && 
-        !line.trim().endsWith('{') && 
-        !line.trim().endsWith('}') && 
-        !line.trim().endsWith(':') &&
-        !line.trim().startsWith('if') &&
-        !line.trim().startsWith('for') &&
-        !line.trim().startsWith('while') &&
-        !line.trim().startsWith('function')) {
-      errors.push({
-        line: index + 1,
-        message: 'Missing semicolon at the end of the line'
-      });
-    }
-  });
-  
-  // Check for unbalanced brackets
-  let openBraces = 0;
-  let openParens = 0;
-  let openBrackets = 0;
-  
-  for (let i = 0; i < code.length; i++) {
-    switch (code[i]) {
-      case '{': openBraces++; break;
-      case '}': openBraces--; break;
-      case '(': openParens++; break;
-      case ')': openParens--; break;
-      case '[': openBrackets++; break;
-      case ']': openBrackets--; break;
-    }
-    
-    if (openBraces < 0) {
-      errors.push({ message: 'Unexpected closing brace' });
-      openBraces = 0;
-    }
-    if (openParens < 0) {
-      errors.push({ message: 'Unexpected closing parenthesis' });
-      openParens = 0;
-    }
-    if (openBrackets < 0) {
-      errors.push({ message: 'Unexpected closing bracket' });
-      openBrackets = 0;
-    }
-  }
-  
-  if (openBraces > 0) errors.push({ message: 'Unclosed braces' });
-  if (openParens > 0) errors.push({ message: 'Unclosed parentheses' });
-  if (openBrackets > 0) errors.push({ message: 'Unclosed brackets' });
-  
-  // Check for potential infinite loops (very basic detection)
-  if (code.includes('while (true)') || code.includes('for (;;)')) {
-    errors.push({ message: 'Potential infinite loop detected' });
-  }
-  
-  return errors;
-}
-
 // Simple code execution (simulation)
-function executeCode(code) {
+// The custom detectErrors function has been removed.
+// Monaco's own diagnostics should be used instead.
+function executeCode(code, language = 'javascript') { // Added language parameter
   // Create a safe environment for code execution
   try {
-    // First check for errors
-    const errors = detectErrors(code);
-    if (errors.length > 0) {
+    if (language !== 'javascript') {
       return {
-        success: false,
-        output: 'Error: ' + errors.map(e => e.message).join('\n')
+        success: false, // Or true, depending on how we want to frame "syntax check"
+        output: `Direct execution for ${language} is not yet supported. Syntax and errors are checked by the editor.`
       };
     }
+
+    // Proceed with JavaScript execution
+    // Error checking will now primarily be handled by Monaco's diagnostics
+    // directly in the student/facilitator UI logic before calling executeCode,
+    // or executeCode can be called and handle runtime errors.
+    // For now, we'll remove the direct call to the custom detectErrors here.
+    // const errors = detectErrors(code); // Removed
+    // if (errors.length > 0) { // Removed
+    //   return { // Removed
+    //     success: false, // Removed
+    //    output: 'Error: ' + errors.map(e => e.message).join('\n') // Removed as errors is no longer defined here
+    //  }; // Removed
+    // } // Removed
     
     // For safety, we'll just simulate execution
     // In a real app, you might use a sandboxed environment or a server-side execution
