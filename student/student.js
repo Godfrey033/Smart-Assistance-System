@@ -112,34 +112,55 @@ function setupEventListeners() {
   });
   
   // Run code button
-  runBtn.addEventListener('click', () => {
-    const code = editor.getValue();
-    
-    // Log this activity
-    if (window.api && userId) {
-      window.api.logActivity({
-        userId: userId,
-        type: 'code_execution',
-        content: {
-          code: code,
-          language: currentLanguage,
-          timestamp: new Date().toISOString()
-        }
-      });
-    }
-    
-    // Check for errors
-    const errors = detectErrors(code);
-    displayErrors(errors);
-    
-    // Execute code
-    const result = executeCode(code);
-    outputPanel.textContent = result.output;
-    
-    if (!result.success) {
-      outputPanel.classList.add('error');
-    } else {
-      outputPanel.classList.remove('error');
+  runBtn.addEventListener('click', async () => { // Made async for potential delay if needed
+    const originalButtonContent = runBtn.innerHTML;
+    runBtn.innerHTML = `
+      <svg class="loading-spinner" style="width: 16px; height: 16px; margin-right: 8px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      </svg>
+      Running...`;
+    runBtn.disabled = true;
+
+    try {
+      const code = editor.getValue();
+
+      // Log this activity
+      if (window.api && userId) {
+        window.api.logActivity({
+          userId: userId,
+          type: 'code_execution',
+          content: {
+            code: code,
+            language: currentLanguage,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+
+      // Get errors from Monaco editor
+      const model = editor.getModel();
+      if (model) {
+        // It's better to use model.uri.toString() if available and unique,
+        // otherwise monaco.editor.getModelMarkers({}) might be too broad if other models exist.
+        // For this app structure, it's likely fine.
+        const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+        displayErrors(markers);
+      }
+
+      // Execute code
+      // Simulating a small delay for visual feedback if execution is very fast
+      // await new Promise(resolve => setTimeout(resolve, 100));
+      const result = executeCode(code, currentLanguage);
+      outputPanel.textContent = result.output;
+
+      if (!result.success) {
+        outputPanel.classList.add('error');
+      } else {
+        outputPanel.classList.remove('error');
+      }
+    } finally {
+      runBtn.innerHTML = originalButtonContent;
+      runBtn.disabled = false;
     }
   });
   
@@ -283,18 +304,36 @@ function addWelcomeMessage(username) {
 }
 
 // Display errors in the error container
-function displayErrors(errors) {
-  errorContainer.innerHTML = '';
+function displayErrors(markers) {
+  errorContainer.innerHTML = ''; // Clear previous errors
   
-  if (errors.length === 0) {
+  const significantMarkers = markers.filter(marker => marker.severity === monaco.MarkerSeverity.Error || marker.severity === monaco.MarkerSeverity.Warning);
+
+  if (significantMarkers.length === 0) {
+    // Optionally, show a "No errors" message or leave it blank
+    // errorContainer.textContent = 'No errors or warnings detected.';
     return;
   }
   
   const errorList = document.createElement('ul');
+  errorList.classList.add('error-list'); // Add a class for styling
   
-  errors.forEach(error => {
+  significantMarkers.forEach(marker => {
     const errorItem = document.createElement('li');
-    errorItem.textContent = error.line ? `Line ${error.line}: ${error.message}` : error.message;
+    let severityClass = '';
+    let severityText = '';
+
+    if (marker.severity === monaco.MarkerSeverity.Error) {
+      severityClass = 'error';
+      severityText = 'Error';
+    } else if (marker.severity === monaco.MarkerSeverity.Warning) {
+      severityClass = 'warning';
+      severityText = 'Warning';
+    }
+
+    errorItem.classList.add(severityClass);
+    // Displaying line, column, message, and severity
+    errorItem.textContent = `Line ${marker.startLineNumber}, Col ${marker.startColumn}: ${marker.message} [${severityText}]`;
     errorList.appendChild(errorItem);
   });
   

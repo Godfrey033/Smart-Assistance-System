@@ -124,13 +124,17 @@
 
 .editor-container {
   flex: 1;
-  border: none;
+  border: none; /* Editor itself shouldn't have a border if panel has one */
   margin: 0;
-  border-radius: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0; /* Top corners rounded */
+  overflow: hidden; /* Important for rounded corners on Monaco */
 }
 
 .output-panel {
   border-top: 1px solid var(--border-color);
+  background-color: var(--surface-color); /* Match editor section bg if different */
+  border-radius: 0 0 var(--radius-md) var(--radius-md); /* Bottom corners rounded */
+  overflow: hidden; /* Ensure children don't break radius */
 }
 
 .panel-header {
@@ -155,37 +159,49 @@
 
 .output-container {
   height: 150px;
-  background-color: #1e1e1e;
+  background-color: #1e1e1e; /* Consider var(--surface-color) or a darker variant */
   color: #ddd;
   padding: var(--space-md);
-  border-radius: 0;
+  border-radius: 0 0 var(--radius-md) var(--radius-md); /* Match editor container bottom */
   overflow-y: auto;
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: 0.9rem; /* Slightly larger for readability */
+  line-height: 1.5;
 }
 
 .output-container.error {
-  color: #ff6b6b;
+  color: var(--error-color); /* Use CSS variable */
 }
 
 .error-container {
-  background-color: #fff5f5;
-  color: #e03131;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: 0;
+  background-color: rgba(230, 57, 70, 0.05); /* Softer background for errors */
+  color: var(--error-color); /* Use CSS variable */
+  padding: var(--space-md); /* Consistent padding */
+  border-radius: 0; /* Kept as is, part of the panel */
   margin-top: 0;
   font-size: 0.875rem;
-  border-top: 1px solid #ffc9c9;
+  border-top: 1px solid rgba(230, 57, 70, 0.2); /* Softer border */
+  line-height: 1.5;
 }
 
 .error-container ul {
-  margin-left: var(--space-md);
-  padding: 0;
+  margin: 0; /* Remove default margin */
+  padding-left: var(--space-md); /* Indent items */
+  list-style-position: outside;
 }
 
 .error-container li {
-  margin-bottom: var(--space-xs);
+  margin-bottom: var(--space-sm); /* More space between errors */
+  padding-left: var(--space-xs);
 }
+
+.error-container li.error { /* Style for monaco errors */
+    color: var(--error-color);
+}
+.error-container li.warning { /* Style for monaco warnings */
+    color: var(--warning-color);
+}
+
 
 /* Chat section */
 .chat-section {

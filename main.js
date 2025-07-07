@@ -2,7 +2,7 @@
 const electron = require('electron');
 const path = require('path');
 const fs = require('fs');
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 
 // Extract required components from electron
 const app = electron.app;
@@ -16,45 +16,41 @@ let db = null;
 // Initialize the database
 function initializeDatabase() {
   const dbPath = path.join(app.getPath('userData'), 'smartassistance.db');
-  db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-      console.error('Database connection error:', err);
-    } else {
-      console.log('Connected to the database');
-      
-      // Create tables if they don't exist
-      db.serialize(() => {
-        // Users table
-        db.run(`CREATE TABLE IF NOT EXISTS users (
-          id TEXT PRIMARY KEY,
-          username TEXT NOT NULL,
-          role TEXT NOT NULL,
-          created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )`);
-        
-        // Activities table
-        db.run(`CREATE TABLE IF NOT EXISTS activities (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id TEXT NOT NULL,
-          type TEXT NOT NULL,
-          content TEXT,
-          timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES users (id)
-        )`);
-        
-        // Messages table
-        db.run(`CREATE TABLE IF NOT EXISTS messages (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          sender_id TEXT NOT NULL,
-          receiver_id TEXT,
-          receiver_role TEXT,
-          content TEXT NOT NULL,
-          timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (sender_id) REFERENCES users (id)
-        )`);
-      });
-    }
-  });
+  try {
+    db = new Database(dbPath); // { verbose: console.log } can be added for debugging
+    console.log('Connected to the database');
+
+    // Create tables if they don't exist
+    // better-sqlite3 runs statements sequentially by default
+    db.exec(`CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    db.exec(`CREATE TABLE IF NOT EXISTS activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      content TEXT,
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id)
+    )`);
+
+    db.exec(`CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sender_id TEXT NOT NULL,
+      receiver_id TEXT,
+      receiver_role TEXT,
+      content TEXT NOT NULL,
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (sender_id) REFERENCES users (id)
+    )`);
+
+  } catch (err) {
+    console.error('Database connection error:', err);
+  }
 }
 
 // Create the main window
@@ -63,7 +59,7 @@ function createWindow() {
     width: 800,
     height: 600,
     webPreferences: {
-      nodeIntegration: true,
+      nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     }
@@ -107,7 +103,7 @@ ipcMain.on('open-window', (event, role) => {
       width: 1024,
       height: 768,
       webPreferences: {
-        nodeIntegration: true,
+        nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js')
       }
@@ -126,7 +122,7 @@ ipcMain.on('open-window', (event, role) => {
       width: 1200,
       height: 800,
       webPreferences: {
-        nodeIntegration: true,
+        nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js')
       }
@@ -144,38 +140,50 @@ ipcMain.on('open-window', (event, role) => {
 
 // Handle student activity
 ipcMain.on('student-activity', (event, data) => {
+  if (!db) {
+    console.error('Database not initialized during student-activity');
+    return;
+  }
   // Save to database
   if (data.userId) {
-    // Check if user exists
-    db.get('SELECT id FROM users WHERE id = ?', [data.userId], (err, row) => {
-      if (err) {
-        console.error('Error checking user:', err);
-        return;
-      }
+    try {
+      // Check if user exists
+      const userExistsStmt = db.prepare('SELECT id FROM users WHERE id = ?');
+      const row = userExistsStmt.get(data.userId);
       
       if (!row && data.type === 'login') {
         // Add new user
-        db.run('INSERT INTO users (id, username, role) VALUES (?, ?, ?)', 
-          [data.userId, data.content.username, 'student']);
+        const insertUserStmt = db.prepare('INSERT INTO users (id, username, role) VALUES (?, ?, ?)');
+        insertUserStmt.run(data.userId, data.content.username, 'student');
       }
       
       // Log activity
-      db.run('INSERT INTO activities (user_id, type, content) VALUES (?, ?, ?)',
-        [data.userId, data.type, JSON.stringify(data.content)]);
+      const insertActivityStmt = db.prepare('INSERT INTO activities (user_id, type, content) VALUES (?, ?, ?)');
+      insertActivityStmt.run(data.userId, data.type, JSON.stringify(data.content));
       
       // Broadcast to facilitators
       BrowserWindow.getAllWindows().forEach(window => {
         window.webContents.send('student-update', data);
       });
-    });
+    } catch (err) {
+      console.error('Error processing student activity:', err);
+    }
   }
 });
 
 // Handle messaging
 ipcMain.on('send-message', (event, data) => {
+  if (!db) {
+    console.error('Database not initialized during send-message');
+    return;
+  }
   // Save to database
-  db.run('INSERT INTO messages (sender_id, receiver_id, receiver_role, content) VALUES (?, ?, ?, ?)',
-    [data.senderId, data.receiverId, data.receiverRole, data.content]);
+  try {
+    const insertMsgStmt = db.prepare('INSERT INTO messages (sender_id, receiver_id, receiver_role, content) VALUES (?, ?, ?, ?)');
+    insertMsgStmt.run(data.senderId, data.receiverId, data.receiverRole, data.content);
+  } catch (err) {
+    console.error('Error saving message to database:', err);
+  }
   
   // Broadcast to appropriate receivers
   BrowserWindow.getAllWindows().forEach(window => {
@@ -185,13 +193,16 @@ ipcMain.on('send-message', (event, data) => {
 
 // Handle get students request
 ipcMain.handle('get-students', async (event) => {
-  return new Promise((resolve, reject) => {
-    db.all('SELECT * FROM users WHERE role = ?', ['student'], (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
+  if (!db) {
+    console.error('Database not initialized during get-students');
+    return [];
+  }
+  try {
+    const stmt = db.prepare('SELECT * FROM users WHERE role = ?');
+    const rows = stmt.all('student');
+    return rows;
+  } catch (err) {
+    console.error('Error fetching students:', err);
+    return []; // Return an empty array or throw error as appropriate
+  }
 });

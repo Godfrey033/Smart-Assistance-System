@@ -188,20 +188,26 @@ header {
 .student-item {
   display: flex;
   align-items: center;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-md);
+  padding: var(--space-md); /* Increased padding for more space */
+  border-radius: var(--radius-lg); /* Slightly larger radius to match other elements */
   cursor: pointer;
-  margin-bottom: var(--space-xs);
+  margin-bottom: var(--space-sm); /* Increased margin between items */
   background-color: white;
   transition: all var(--transition-fast);
-  border-left: 3px solid transparent;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  border-left: 4px solid transparent; /* Thicker border for active state */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   position: relative;
+}
+
+.student-item span:not(.last-active):not(.student-status) { /* Target the student name */
+  font-weight: 500; /* Make name slightly bolder */
+  font-size: 0.95rem; /* Slightly larger name */
+  color: var(--text-primary); /* Ensure good contrast */
 }
 
 .student-item .last-active {
   position: absolute;
-  right: 10px;
+  right: var(--space-md); /* Use variable for spacing */
   top: 50%;
   transform: translateY(-50%);
   font-size: 0.7rem;
@@ -216,8 +222,9 @@ header {
 }
 
 .student-item.active {
-  background-color: rgba(67, 97, 238, 0.08);
-  border-left-color: var(--secondary-color);
+  background-color: rgba(var(--primary-color-rgb, 67, 97, 238), 0.12); /* Use RGB for opacity */
+  border-left-color: var(--accent-color); /* More vibrant accent */
+  box-shadow: 0 3px 8px rgba(var(--primary-color-rgb, 67, 97, 238), 0.1);
 }
 
 .student-status {
@@ -410,23 +417,54 @@ header {
 .error-list {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-md);
+  padding: var(--space-sm); /* Slightly reduced padding for the container */
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
-.error-list ul {
+.error-list ul { /* General list styling */
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
-.error-list li {
-  padding: var(--space-xs) var(--space-sm);
-  margin-bottom: var(--space-xs);
-  background-color: rgba(230, 57, 70, 0.08);
-  border-left: 3px solid var(--error-color);
-  border-radius: var(--radius-sm);
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+.error-list ul.monaco-error-list li,
+.error-list ul.advanced-analysis-list li {
+  padding: var(--space-xs) var(--space-md); /* Consistent padding */
+  margin-bottom: var(--space-sm); /* Increased margin */
+  border-radius: var(--radius-md); /* Softer radius */
+  border-left-width: 4px; /* Slightly thicker border */
+  border-left-style: solid;
+  color: var(--text-secondary); /* Default text color */
 }
+
+/* Monaco Specific Error/Warning styling */
+.error-list ul.monaco-error-list li.error {
+  background-color: rgba(230, 57, 70, 0.05); /* var(--error-color) with low alpha */
+  border-left-color: var(--error-color);
+  color: var(--error-color); /* Make text also error color */
+}
+
+.error-list ul.monaco-error-list li.warning {
+  background-color: rgba(255, 183, 3, 0.05); /* var(--warning-color) with low alpha */
+  border-left-color: var(--warning-color);
+  color: var(--warning-color); /* Make text also warning color */
+}
+
+/* Advanced Analysis Specific Styling */
+.error-list ul.advanced-analysis-list li {
+  background-color: rgba(76, 201, 240, 0.05); /* var(--accent-color) with low alpha */
+  border-left-color: var(--accent-color);
+  color: var(--text-secondary); /* Keep default for suggestions */
+}
+
+.error-list ul.advanced-analysis-list li[style*="font-weight: bold"] { /* For the title "Code Quality Suggestions:" */
+  background-color: transparent;
+  border-left: none;
+  padding-left: 0;
+  color: var(--text-primary);
+}
+
 
 .chat-section {
   flex: 1;
